@@ -1,0 +1,9 @@
+build/
+*.o
+*.out
+*.exe
+*.log
+*.dSYM
+.vscode/
+.idea/
+help/
