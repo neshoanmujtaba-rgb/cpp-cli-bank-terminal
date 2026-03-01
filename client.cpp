@@ -35,7 +35,7 @@ int main(){
         // Senden 
         send(client_fd, nachricht.c_str(), nachricht.size(), 0); 
 
-
+    }
     close(client_fd);
     return 0;
 }
