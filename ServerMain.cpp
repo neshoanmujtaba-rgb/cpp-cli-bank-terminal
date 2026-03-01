@@ -3,11 +3,37 @@
 #include <unistd.h> 
 #include <sys/socket.h>
 #include <netinet/in.h> 
+#include <vector>
+
+class Socket {
+
+    // RAII (Resource Acquisition Is Initialisation) means you tie a resource's lifetime to an object, when the object is destroyed, the resource is cleaned up automatically.
+    public: 
+    int fd; 
+
+    // Constructor creates the socket 
+    Socket(int domain, int type, int protocol){
+        fd = socket(domain, type, protocol);
+    }
+
+    // Destructor: automatically called when object goes out of scope
+    ~Socket() {
+        if (fd != -1) {
+            close(fd);
+            std::cout << "Socket closed automatically" << std::endl;
+        }
+    }
+
+    // Prevent accidental copying (important as two objects closing same fd is bad)
+    Socket(const Socket&) = delete; 
+    Socket& operator=(const Socket&) = delete; 
+};
 
 int main() {
+
     // 1. Socket erstellen AF_INET bedeutet IPv4
-    int server_fd = socket(AF_INET, SOCK_STREAM, 0); //SOCK_STREAM ist TCP 
-    if (server_fd == -1){
+    Socket server(AF_INET, SOCK_STREAM, 0); // socket created 
+    if (server.fd == -1){
         std::cerr << "Could not create socket" << std::endl; 
         return 1; 
     }
@@ -18,43 +44,51 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY; // all network interfaces 
     address.sin_port = htons(8080); // port 8080
 
+    // Telling the OS to allow reuse of tis port even if it is in TIME_WAIT
+    int opt =1; 
+    if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+        std::cerr << "setsockopt failed" << std::endl; 
+    }
+    
     // 3. Socket an Port binden 
-    if(bind(server_fd, (sockaddr*)&address, sizeof(address)) == -1) {
+    if(bind(server.fd, (sockaddr*)&address, sizeof(address)) == -1) {
         std::cerr << "Bind failed" << std::endl; 
         return 1; 
     }
  
     // 4. auf verbindungen warten (max. 5 in der warteschlange)
-    listen(server_fd, 5); 
+    listen(server.fd, 5); 
     std::cout << "Server listening on port 8080..." <<std::endl; // add a get port number function 
 
     // 5. Accept connection 
-    int client_fd = accept(server_fd, nullptr, nullptr); 
+    int client_fd = accept(server.fd, nullptr, nullptr); 
 
-while(true){
+    while(true){
 
-    // 6. Nachrichte empfangen 
-    char buffer[1024] = {}; 
-    int bytes = read(client_fd, buffer, sizeof(buffer)); 
+        // 6. Nachrichte empfangen 
+        std::vector<uint8_t>buffer(1024,0); // 1024 bytes, all zeroed 
 
-    if(bytes <=0){
-        std::cout << "Client hat die Verbindung unterbrochen" << std::endl; 
-    }
-    
-    std::cout << "Empfangen: " << buffer << std::endl; 
+        // buffer.data(0) gives the raw pointer read() needs...
+        int bytes = read(client_fd, buffer.data(), buffer.size() -1); 
 
-    // 7. Antwort senden 
-    std::string antwort = "Hello from server!\n"; 
+        if(bytes <=0){
+            std::cout << "Client hat die Verbindung unterbrochen" << std::endl; 
+            break; 
+        }
+        
+        buffer[bytes] = '\0'; // null termination discipline! 
+        std::string received(buffer.begin(), buffer.begin() + bytes); 
+        std::cout << "Empfangen: " << received << std::endl; 
+        
+        if (received == "close connection") break;
 
-    send(client_fd, antwort.c_str(), antwort.size(), 0); 
+        // 7. Antwort senden 
+        std::string antwort = "Hello from server!\n"; 
 
-    if (std::string(buffer) == "close connection") break;
-    
-    }
-
-   
+        send(client_fd, antwort.c_str(), antwort.size(), 0);         
+    }  
     // 8. verbindung schliessen 
     close(client_fd);
-    close(server_fd); 
-    return 0; 
+    close(server.fd); 
+    return 0;
 }
