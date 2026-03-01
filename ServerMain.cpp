@@ -49,7 +49,7 @@ int main() {
     if (setsockopt(server.fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
         std::cerr << "setsockopt failed" << std::endl; 
     }
-    
+
     // 3. Socket an Port binden 
     if(bind(server.fd, (sockaddr*)&address, sizeof(address)) == -1) {
         std::cerr << "Bind failed" << std::endl; 
@@ -89,6 +89,5 @@ int main() {
     }  
     // 8. verbindung schliessen 
     close(client_fd);
-    close(server.fd); 
     return 0;
 }
